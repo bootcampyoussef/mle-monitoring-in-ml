@@ -1,0 +1,16 @@
+prefect==2.10.14
+tqdm
+requests
+joblib
+pyarrow
+sqlalchemy
+psycopg2-binary 
+evidently 
+pandas
+numpy
+scikit-learn
+jupyter
+matplotlib
+python-dotenv
+mlflow
+google-cloud-storage
