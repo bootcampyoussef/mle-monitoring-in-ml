@@ -22,5 +22,4 @@ services:
 
 volumes:
     dbdata:
-    prometheus-data:
     grafana-data:
