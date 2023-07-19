@@ -140,8 +140,7 @@ def run(
 
 
 if __name__ == "__main__":
-    dotenv_path = "<path-to>.env"
-    load_dotenv(dotenv_path)
+    load_dotenv()
 
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     RUN_ID = os.getenv("RUN_ID")

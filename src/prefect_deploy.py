@@ -4,8 +4,7 @@ from predict_flow import run
 from dotenv import load_dotenv
 import os
 
-dotenv_path = "<path-to-dotenv>.env"
-load_dotenv(dotenv_path)
+load_dotenv()
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
 RUN_ID = os.getenv("RUN_ID")
