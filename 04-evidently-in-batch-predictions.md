@@ -133,7 +133,7 @@ prefect server start
 and the prefect agent:
 
 ```bash
-prefect agent start
+prefect agent start -q 'default'
 ```
 
 Then you need to create the deployment:
