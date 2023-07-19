@@ -4,7 +4,8 @@ from predict_flow import run
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+dotenv_path = "/Users/aziro/neuefische/mle/review/mle-monitoring-in-ml/.env"
+load_dotenv(dotenv_path)
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
 RUN_ID = os.getenv("RUN_ID")
