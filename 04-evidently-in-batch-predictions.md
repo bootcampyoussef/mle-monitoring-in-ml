@@ -122,7 +122,7 @@ def load_report(result):
     df_report.to_sql("drift_metrics", engine, if_exists="append", index=False)
 ```
 
-You will need a `reference_data.parquet` and `.env` file to run it. You can create your reference data with the code provided in 03-intro-to-evidently.ipynb and store it as a parquet file.
+You will need a `reference_data.parquet` file to run it. You can create your reference data with the code provided in 03-intro-to-evidently.ipynb and store it as a parquet file.
 
 To run the flow start the prefect server:
 
