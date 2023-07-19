@@ -2,7 +2,7 @@
 
 For this example we will use prefect to schedule a prediction job for a model that was trained in the previous example and load the evidently report data into a postgres database. The first thing we will do is spin up a postgres database and a grafana instance using docker-compose.
 
-Grafana we get to see yesterday, it is a dashboarding tool that we will use to visualize the data in our database. 
+Grafana we saw yesterday, it is a dashboarding tool that we will use to visualize the data in our database. 
 
 
 ```yml
@@ -40,7 +40,7 @@ And then we can start it up with docker-compose:
 docker-compose up -d
 ```
 
-The grafana settings are stored in the `grafana` directory. We set the data source to the postgres database. And created a dashboard for the data drift in `grafana/dashboard.json`.
+The grafana settings are stored in the `grafana` directory. We set the data source to the postgres database. And created a dashboard for the data drift in `grafana/data_drift.json`.
 
 ```yml
 # config file version
@@ -64,9 +64,9 @@ datasources:
 Once started you can access the grafana dashboard at http://localhost:3000. The default username and password are both `admin`. You will be prompted to change the password you can skip that. You should be able the see the dashboard but of course without any data because we haven't loaded any yet.
 
 
-Now let's create a prefect flow that will make the batch predcitions and load the evidently report a into the database. 
+Now let's create a prefect flow that will make the batch predcitions and load the evidently report into the database. 
 
-You can find the code in `src/predicr_flow.py`. The flow will create an evidently report with this code:
+You can find the code in `src/predict_flow.py`. The flow will create an evidently report with this code:
 
 ```python
 def create_report(reference_data, df, num_features, cat_features, target):
@@ -122,6 +122,8 @@ def load_report(result):
     df_report.to_sql("drift_metrics", engine, if_exists="append", index=False)
 ```
 
+You will need a `reference_data.parquet` and `.env` file to run it. You can create your reference data with the code provided in 03-intro-to-evidently.ipynb and store it as a parquet file.
+
 To run the flow start the prefect server:
 
 ```bash
@@ -137,10 +139,10 @@ prefect agent start
 Then you need to create the deployment:
 
 ```bash
-python src/predict_deploy.py
+python src/prefect_deploy.py
 ```
 
-Now you can run the flow via the UI which you can access at http://localhost:8080. In the UI you need to navigate to `Deployments` click on the `ride_duration_prediction_monitoring` deployment and then click on `Run` and than start a `Quick Run`. Repeat this a few times with different months and you should see the data in the database and the grafana dashboard should start to show some data. Finally use the year `2022` and month `2` to see the data drift.
+Now you can run the flow via the [Prefect UI](http://127.0.0.1:4200/). In the UI you need to navigate to `Deployments` click on the `ride_duration_prediction_monitoring` deployment and then click on `Run` and than start a `Quick Run`. Repeat this a few times with different months and you should see the data in the database and the grafana dashboard should start to show some data. Finally use the year `2022` and month `2` to see the data drift.
 
 ## Next Steps
 
