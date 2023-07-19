@@ -4,6 +4,8 @@ import pandas as pd
 import mlflow
 from prefect import task, flow, get_run_logger
 from datetime import datetime
+from dotenv import load_dotenv
+
 
 from sqlalchemy import create_engine
 
@@ -138,4 +140,11 @@ def run(
 
 
 if __name__ == "__main__":
-    run()
+    load_dotenv()
+
+    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+    RUN_ID = os.getenv("RUN_ID")
+    GOOGLE_SA_KEY = os.getenv("SA_KEY")
+
+    run(run_id=RUN_ID, google_sa_key=GOOGLE_SA_KEY, MLFLOW_TRACKING_URI=MLFLOW_TRACKING_URI)
+
