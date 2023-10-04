@@ -1,4 +1,4 @@
-prefect==2.10.14
+prefect
 tqdm
 requests
 joblib
