@@ -4,7 +4,7 @@ Monitoring is a crucial part of the ML lifecycle. It is important to monitor the
 
 ## Notebooks
 
-1. [Model Training](./01-training-ml-model.ipynb)
+1. [Model Training](./01-train-ml-model.ipynb)
 2. [Model Drift](./02-intro-to-drift.ipynb)
 3. [Evidently](./03-intro-to-evidently.ipynb)
 4. [Evidently in Batch predictions](./04-evidently-in-batch-predictions.ipynb)
