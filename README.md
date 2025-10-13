@@ -11,12 +11,37 @@ Monitoring is a crucial part of the ML lifecycle. It is important to monitor the
 
 ## Setup
 
-### Environment
 
-```bash
-pyenv local 3.11.3
-python -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install -r requirements.txt
-```
+## Environment
+
+Please make sure you have forked the repo and set up a new virtual environment. For this purpose you can use the following commands:
+
+### **`macOS`**
+```BASH
+  pyenv local 3.11.3
+  python -m venv .venv
+  source .venv/bin/activate
+  pip install --upgrade pip
+  pip install -r requirements.txt
+  ```
+### **`WindowsOS`**
+ For `PowerShell` CLI :
+
+  ```PowerShell
+  pyenv local 3.11.3
+  python -m venv .venv
+  .venv\Scripts\Activate.ps1
+  python -m pip install --upgrade pip
+  pip install -r requirements.txt
+  ```
+
+  For `Git-Bash` CLI :
+
+  ```
+  pyenv local 3.11.3
+  python -m venv .venv
+  source .venv/Scripts/activate
+  python -m pip install --upgrade pip
+  pip install -r requirements.txt
+  ```
+
