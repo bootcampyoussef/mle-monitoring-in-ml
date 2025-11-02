@@ -20,7 +20,7 @@ schedule_rule = RRuleSchedule(rrule=rrule_string)
 if __name__ == "__main__":
     # Start the flow with a schedule
     run.serve(
-        name="ride_duration_prediction",
+        name="ride_duration_prediction_monitoring",
         schedules=[
             schedule_rule,
             ],
