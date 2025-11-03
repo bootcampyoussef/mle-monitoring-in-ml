@@ -30,8 +30,7 @@
     "panels": [
       {
         "datasource": {
-          "type": "postgres",
-          "uid": "PCC52D03280B7034C"
+          "type": "postgres"
         },
         "fieldConfig": {
           "defaults": {
@@ -104,8 +103,7 @@
         "targets": [
           {
             "datasource": {
-              "type": "postgres",
-              "uid": "PCC52D03280B7034C"
+              "type": "postgres"
             },
             "format": "time_series",
             "group": [],
@@ -140,8 +138,7 @@
       },
       {
         "datasource": {
-          "type": "postgres",
-          "uid": "PCC52D03280B7034C"
+          "type": "postgres"
         },
         "fieldConfig": {
           "defaults": {
@@ -230,8 +227,7 @@
         "targets": [
           {
             "datasource": {
-              "type": "postgres",
-              "uid": "PCC52D03280B7034C"
+              "type": "postgres"
             },
             "format": "time_series",
             "group": [],
@@ -266,8 +262,7 @@
       },
       {
         "datasource": {
-          "type": "postgres",
-          "uid": "PCC52D03280B7034C"
+          "type": "postgres"
         },
         "fieldConfig": {
           "defaults": {
@@ -356,8 +351,7 @@
         "targets": [
           {
             "datasource": {
-              "type": "postgres",
-              "uid": "PCC52D03280B7034C"
+              "type": "postgres"
             },
             "format": "time_series",
             "group": [],
@@ -399,7 +393,7 @@
     },
     "timepicker": {},
     "timezone": "",
-    "title": "New dashboard",
+    "title": "Monitoring Dashboard",
     "uid": "NPXSRpQ4z",
     "version": 1,
     "weekStart": ""

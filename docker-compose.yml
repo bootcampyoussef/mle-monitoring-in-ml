@@ -1,25 +1,35 @@
-version: '3.7'
-
 services:
-  db:
-    image: postgres
+  db_service:
+    image: postgres:latest
+    container_name: postgres_db
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: ny_taxi
     ports:
-      - "5432:5432"
+      - "5555:5432"
+    networks:
+      - monitoring-net
 
-  grafana:
-      image: grafana/grafana
-      ports:
-          - 3000:3000
-      restart: unless-stopped
-      volumes:
-          - ./grafana:/etc/grafana/
-          - grafana-data:/var/lib/grafana
+  grafana_service:
+    image: grafana/grafana:latest
+    container_name: grafana
+    depends_on:
+      - db_service 
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
+      - grafana-data:/var/lib/grafana
+    networks:
+      - monitoring-net
 
 volumes:
-    dbdata:
-    grafana-data:
+  dbdata:
+  grafana-data:
+networks:
+  monitoring-net:
+    driver: bridge

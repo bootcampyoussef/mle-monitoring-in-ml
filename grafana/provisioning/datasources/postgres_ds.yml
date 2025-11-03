@@ -4,13 +4,13 @@ apiVersion: 1
 # list of datasources to insert/update
 # available in the database
 datasources:
-  - name: PostgreSQL
+  - name: Postgres
     type: postgres
-    access: proxy
-    url: db:5432
-    database: ny_taxi
+    url: db_service:5432
     user: postgres
     secureJsonData:
       password: 'postgres'
     jsonData:
+      database: ny_taxi
       sslmode: 'disable'
+    isDefault: true
