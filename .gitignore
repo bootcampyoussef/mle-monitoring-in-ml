@@ -77,6 +77,10 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+.DS_Store
+
+# Local MLflow tracking runs and model artifacts are generated while learners work.
+mlruns/
 
 # IPython
 profile_default/
