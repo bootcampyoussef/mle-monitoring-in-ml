@@ -1,154 +1,179 @@
 import os
-import uuid
-import pandas as pd
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, List, cast
+
 import mlflow
-from prefect import task, flow, get_run_logger
-from datetime import datetime
+import pandas as pd
 from dotenv import load_dotenv
-from typing import List
-
-
+from evidently.future.datasets import DataDefinition, Dataset
+from evidently.future.metrics import DriftedColumnsCount, MissingValueCount, ValueDrift
+from evidently.future.report import Report
+from prefect import flow, get_run_logger, task
 from sqlalchemy import create_engine
 
-from evidently import DataDefinition
-from evidently import Dataset
-from evidently import Report
-from evidently.metrics import ValueDrift, DriftedColumnsCount, MissingValueCount
-from evidently.metrics.column_statistics import MinValue, MaxValue, MeanValue
-from evidently.presets import DataDriftPreset, DataSummaryPreset
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = REPO_ROOT / "data"
+REFERENCE_DATA_PATH = DATA_DIR / "reference_data.parquet"
+DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@localhost:5555/ny_taxi"
 
 
-def generate_uuids(n):
-    ride_ids = []
-    for i in range(n):
-        ride_ids.append(str(uuid.uuid4()))
-    return ride_ids
-
-
-def preprocess(filename, num_features, cat_features, target):
+def preprocess(
+    filename: str, num_features: List[str], cat_features: List[str], target: str
+) -> pd.DataFrame:
+    """Load one taxi batch and keep the same modeling columns used in notebooks."""
     df = pd.read_parquet(filename)
+
+    # Duration is the supervised label; filtering keeps training and monitoring
+    # aligned with the outlier rules introduced in notebook 1.
     df["duration"] = (
         df["lpep_dropoff_datetime"] - df["lpep_pickup_datetime"]
     ).dt.total_seconds() / 60
     df = df[(df["duration"] >= 1) & (df["duration"] <= 60)]
     df = df[(df["passenger_count"] > 0) & (df["passenger_count"] < 8)]
-    df = df[cat_features + num_features + [target]]
-    #df["ride_id"] = generate_uuids(len(df))
-    return df
+    return df[cat_features + num_features + [target]]
 
 
-def load_model(run_id, mlflow_tracking_uri):
+def load_model(run_id: str, mlflow_tracking_uri: str):
+    """Load the exact model run selected by the learner's RUN_ID setting."""
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     logged_model = f"runs:/{run_id}/mlflow-model"
-    # Load model as a PyFuncModel.
-    loaded_model = mlflow.pyfunc.load_model(logged_model)
-    return loaded_model
+    return mlflow.pyfunc.load_model(logged_model)
 
 
-def prepare_evidently_dataset(df: pd.DataFrame, num_features: List[str], cat_features: List[str], pred_col: str) -> Dataset:
-    """Prepare an Evidently Dataset from a pandas DataFrame."""
-    data_definition = DataDefinition(numerical_columns=num_features + [pred_col], categorical_columns=cat_features)
-    evidently_dataset = Dataset.from_pandas(df, data_definition)
-    return evidently_dataset
+def prepare_evidently_dataset(
+    df: pd.DataFrame,
+    num_features: List[str],
+    cat_features: List[str],
+    pred_col: str,
+) -> Dataset:
+    """Attach column roles so Evidently treats features and predictions correctly."""
+    data_definition = DataDefinition(
+        numerical_columns=num_features + [pred_col],
+        categorical_columns=cat_features,
+    )
+    return Dataset.from_pandas(df, data_definition)
 
-def create_report(reference_data: pd.DataFrame, current_data: pd.DataFrame, num_features: List[str] , cat_features: List[str], pred_col: str = 'prediction') -> dict:
-    """Create an Evidently report comparing reference and current datasets."""
+
+def create_report(
+    reference_data: pd.DataFrame,
+    current_data: pd.DataFrame,
+    num_features: List[str],
+    cat_features: List[str],
+    pred_col: str = "prediction",
+) -> dict:
+    """Compare the saved reference snapshot with the current scored batch."""
+    reference_dataset = prepare_evidently_dataset(
+        reference_data, num_features, cat_features, pred_col
+    )
+    current_dataset = prepare_evidently_dataset(
+        current_data, num_features, cat_features, pred_col
+    )
+
+    report_metrics: list[Any] = [
+        cast(Any, ValueDrift)(column="prediction"),
+        cast(Any, DriftedColumnsCount)(),
+        cast(Any, MissingValueCount)(column="prediction"),
+    ]
+
+    report = Report(
+        metrics=report_metrics,
+        include_tests=True,
+    )
+
+    return report.run(
+        reference_data=reference_dataset, current_data=current_dataset
+    ).dict()
+
+
+def load_report(result: dict, database_url: str) -> None:
+    """Persist the small metric set that powers the Grafana dashboard."""
     logger = get_run_logger()
-    logger.info(f"Creating report...")
-
-    reference_dataset = prepare_evidently_dataset(reference_data, num_features, cat_features, pred_col)
-    current_dataset = prepare_evidently_dataset(current_data, num_features, cat_features, pred_col)
-
-    report = Report(metrics=[
-        ValueDrift(column='prediction'), 
-        DriftedColumnsCount(),
-        MissingValueCount(column='prediction')], include_tests=True)
-
-    result = report.run(reference_data=reference_dataset, current_data=current_dataset).dict()
-
-    return result
-
-
-def load_report(result):
-    """Load the report into the Postgres database."""
-    logger = get_run_logger()
-    logger.info(f"Loading results to database...")
-    engine = create_engine("postgresql://postgres:postgres@localhost:5555/ny_taxi")
+    logger.info("Loading results to database")
+    engine = create_engine(database_url)
 
     report_dict = {
-        "timestamp": datetime.now(),
-        "prediction_drift": result['metrics'][0]['value'],
-        "num_drifted_columns": result['metrics'][1]['value']['count'],
-        "share_missing_values": result['metrics'][2]['value']['share']}
+        "timestamp": datetime.now(timezone.utc),
+        "prediction_drift": result["metrics"][0]["value"],
+        "num_drifted_columns": result["metrics"][1]["value"]["count"],
+        "share_missing_values": result["metrics"][2]["value"]["share"],
+    }
 
     df_report = pd.DataFrame([report_dict])
-
-    logger.info(f"Dataframe: {df_report.head()}")
-
+    logger.info("Writing %s row to drift_metrics", len(df_report))
     df_report.to_sql(name="drift_metrics", con=engine, if_exists="append", index=False)
 
 
 @task
-def apply_model(filename, run_id, mlflow_tracking_uri):
+def apply_model(
+    filename: str, run_id: str, mlflow_tracking_uri: str, database_url: str
+) -> None:
     logger = get_run_logger()
-    logger.info(f"Reading data from {filename}")
+    logger.info("Reading current batch from %s", filename)
 
-    # load the reference dataset
-    logger.info(f"Loading reference data")
-    reference_data = pd.read_parquet("./data/reference_data.parquet")
+    if not REFERENCE_DATA_PATH.exists():
+        raise FileNotFoundError(
+            f"Reference dataset not found at {REFERENCE_DATA_PATH}. "
+            "Run the final cell from 03-intro-to-evidently.ipynb first."
+        )
 
-    # define features
+    # Notebook 3 writes this file after scoring the reference split.
+    reference_data = pd.read_parquet(REFERENCE_DATA_PATH)
+
     cat_features = ["PULocationID", "DOLocationID"]
     num_features = ["trip_distance", "passenger_count", "fare_amount", "total_amount"]
-    # define target
     target = "duration"
 
-    # preprocess current data
     current_data = preprocess(filename, num_features, cat_features, target)
 
-    logger.info(f"Loading the model {run_id}")
+    logger.info("Loading model run %s", run_id)
     loaded_model = load_model(run_id, mlflow_tracking_uri)
-    logger.info(f"Applying the model to make predictions")
-    y_pred = loaded_model.predict(current_data[cat_features + num_features])
+    current_data["prediction"] = loaded_model.predict(
+        current_data[cat_features + num_features]
+    )
 
-    # add predictions to current data
-    current_data["prediction"] = y_pred
-
-    # create evidently report
-    logger.info(f"Creating evidently report")
-    result = create_report(reference_data, current_data, num_features, cat_features, pred_col='prediction')
-
-    # load report to database
-    logger.info(f"Report result: {result}")
-    load_report(result)
+    logger.info("Creating Evidently report")
+    result = create_report(
+        reference_data, current_data, num_features, cat_features, pred_col="prediction"
+    )
+    load_report(result, database_url)
 
 
 @flow(name="Predict Green Taxi Trip Duration")
 def run(
     run_id: str,
-    gcp_key: str,
-    mlflow_tracking_uri,
+    mlflow_tracking_uri: str,
     year: int = 2025,
     month: int = 2,
-):
+    database_url: str = DEFAULT_DATABASE_URL,
+) -> None:
     logger = get_run_logger()
-    logger.info(f"Running flow for {year}-{month:02d}")
-    path = os.path.dirname(__file__)
-    logger.info(f"Current path: {path}")
+    logger.info("Running flow for %s-%02d", year, month)
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = gcp_key
-
+    # Pandas can stream this Parquet file directly from the public NYC TLC bucket.
     filename = f"https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{year}-{month:02d}.parquet"
-    run_id = run_id
-    apply_model(filename, run_id, mlflow_tracking_uri)
+    apply_model(filename, run_id, mlflow_tracking_uri, database_url)
 
 
 if __name__ == "__main__":
     load_dotenv()
 
-    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
-    RUN_ID = os.getenv("RUN_ID")
-    gcp_key = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    mlflow_tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+    run_id = os.getenv("RUN_ID")
+    database_url = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
-    run(run_id=RUN_ID, gcp_key=gcp_key, mlflow_tracking_uri=MLFLOW_TRACKING_URI, year=2025, month=2)
+    if not mlflow_tracking_uri:
+        raise ValueError("MLFLOW_TRACKING_URI is missing. Add it to your .env file.")
+    if not run_id:
+        raise ValueError(
+            "RUN_ID is missing. Add it to your .env file after notebook 1."
+        )
 
+    run(
+        run_id=run_id,
+        mlflow_tracking_uri=mlflow_tracking_uri,
+        year=2025,
+        month=2,
+        database_url=database_url,
+    )

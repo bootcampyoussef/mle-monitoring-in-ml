@@ -1,11 +1,47 @@
 # Evidently in Batch Predictions
 
-For this example we will use prefect to schedule a prediction job for a model that was trained in the previous example and load the evidently report data into a postgres database. The first thing we will do is spin up a postgres database and a grafana instance using docker-compose.
+This chapter turns the earlier notebook work into a small local monitoring system. We will:
 
-Grafana is a dashboarding tool that we will use to visualize the data in our database. 
+1. start a local Postgres and Grafana stack;
+2. run a Prefect flow that loads a registered MLflow model;
+3. compare fresh batch data to the saved reference dataset;
+4. store the resulting drift metrics in Postgres;
+5. inspect the monitoring dashboard in Grafana.
 
+```mermaid
+flowchart LR
+    A["Monthly taxi batch"] --> B["Prefect flow"]
+    B --> C["Load MLflow model"]
+    B --> D["Load reference_data.parquet"]
+    C --> E["Generate predictions"]
+    D --> F["Evidently report"]
+    E --> F
+    F --> G["drift_metrics table in Postgres"]
+    G --> H["Grafana dashboard"]
+```
 
-```yml
+## Prerequisites
+
+Before starting this chapter, make sure you have already:
+
+- completed [01-train-ml-model.ipynb](./01-train-ml-model.ipynb) and saved the resulting `RUN_ID`;
+- completed [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb) and created `data/reference_data.parquet`;
+- copied `.env.example` to `.env` and filled in at least `MLFLOW_TRACKING_URI` and `RUN_ID`.
+
+Your `.env` file should look like this:
+
+```dotenv
+MLFLOW_TRACKING_URI=./mlruns
+RUN_ID=<paste-your-run-id-here>
+PREFECT_API_URL=http://127.0.0.1:4200/api
+DATABASE_URL=postgresql://postgres:postgres@localhost:5555/ny_taxi
+```
+
+## Step 1: Start the Local Monitoring Stack
+
+The repository already includes a Docker Compose file for Postgres and Grafana. The excerpt below shows the services learners interact with most directly; the full file also defines persistent Docker volumes and a shared network:
+
+```yaml
 services:
   db_service:
     image: postgres:latest
@@ -17,14 +53,12 @@ services:
       POSTGRES_DB: ny_taxi
     ports:
       - "5555:5432"
-    networks:
-      - monitoring-net
 
   grafana_service:
     image: grafana/grafana:latest
     container_name: grafana
     depends_on:
-      - db_service 
+      - db_service
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -32,269 +66,158 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/etc/grafana/dashboards
       - grafana-data:/var/lib/grafana
-    networks:
-      - monitoring-net
-
-volumes:
-  dbdata:
-  grafana-data:
-networks:
-  monitoring-net:
-    driver: bridge
 ```
 
-And then we can start it up with docker-compose:
+Start the services from the repository root:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
-The grafana settings are stored in the `grafana` directory. We set the data source to the postgres database. And created a dashboard for the data drift in `grafana/data_drift.json`.
+Open Grafana at [http://127.0.0.1:3000](http://127.0.0.1:3000). The default username and password are both `admin`. Grafana may ask you to change the password on first login; for a local lesson environment, you can skip that prompt.
 
-```yml
-# config file version
-apiVersion: 1
+The Grafana provisioning files are already committed:
 
-# list of datasources to insert/update
-# available in the database
-datasources:
-  - name: PostgreSQL
-    type: postgres
-    url: db_service:5432
-    user: postgres
-    secureJsonData:
-      password: 'postgres'
-    jsonData:
-      database: ny_taxi
-      sslmode: 'disable'
-    isDefault: true
-```
+- [grafana/provisioning/datasources/postgres_ds.yml](./grafana/provisioning/datasources/postgres_ds.yml)
+- [grafana/provisioning/dashboards/grafana_dashboards.yaml](./grafana/provisioning/dashboards/grafana_dashboards.yaml)
+- [grafana/dashboards/data_drift.json](./grafana/dashboards/data_drift.json)
 
-Once started you can access the grafana dashboard at http://localhost:3000. The default username and password are both `admin`. You will be prompted to change the password you can skip that. You should be able the see the dashboard but of course without any data because we haven't loaded any yet.
+At this point the dashboard loads, but it will stay empty until the Prefect flow inserts rows into the `drift_metrics` table.
 
+## Step 2: Understand the Batch Monitoring Flow
 
-Now let's create a prefect flow that will make the batch predcitions and load the evidently report into the database. 
+The batch monitoring logic lives in [src/predict_flow.py](./src/predict_flow.py).
 
-You can find the code in `src/predict_flow.py`. The flow will create an evidently report with this code:
+The flow does four important things:
+
+1. downloads or reads the current month of taxi rides;
+2. loads the registered model from MLflow;
+3. compares reference data and current predictions with Evidently;
+4. writes a small metrics record into Postgres.
+
+The database insert is intentionally narrow so the dashboard stays easy to read:
 
 ```python
-def prepare_evidently_dataset(df: pd.DataFrame, num_features: List[str], cat_features: List[str], pred_col: str) -> Dataset:
-    """Prepare an Evidently Dataset from a pandas DataFrame."""
-    data_definition = DataDefinition(numerical_columns=num_features + [pred_col], categorical_columns=cat_features)
-    evidently_dataset = Dataset.from_pandas(df, data_definition)
-    return evidently_dataset
-
-def create_report(reference_data: pd.DataFrame, current_data: pd.DataFrame, num_features: List[str] , cat_features: List[str], pred_col: str = 'prediction') -> dict:
-    """Create an Evidently report comparing reference and current datasets."""
-    logger = get_run_logger()
-    logger.info(f"Creating report...")
-
-    reference_dataset = prepare_evidently_dataset(reference_data, num_features, cat_features, pred_col)
-    current_dataset = prepare_evidently_dataset(current_data, num_features, cat_features, pred_col)
-
-    report = Report(metrics=[
-        ValueDrift(column='prediction'), 
-        DriftedColumnsCount(),
-        MissingValueCount(column='prediction')], include_tests=True)
-
-    result = report.run(reference_data=reference_dataset, current_data=current_dataset).dict()
-
-    return result
+report_dict = {
+    "timestamp": datetime.now(timezone.utc),
+    "prediction_drift": result["metrics"][0]["value"],
+    "num_drifted_columns": result["metrics"][1]["value"]["count"],
+    "share_missing_values": result["metrics"][2]["value"]["share"],
+}
 ```
 
-And then we will load the data into the database with this code:
+Those three values are enough to answer a first monitoring question:
 
-```python
-def load_report(result):
-    """Load the report into the Postgres database."""
-    logger = get_run_logger()
-    logger.info(f"Loading results to database...")
-    engine = create_engine("postgresql://postgres:postgres@localhost:5555/ny_taxi")
+- are predictions drifting?
+- how many columns are drifting?
+- are missing values becoming a problem?
 
-    report_dict = {
-        "timestamp": datetime.now(),
-        "prediction_drift": result['metrics'][0]['value'],
-        "num_drifted_columns": result['metrics'][1]['value']['count'],
-        "share_missing_values": result['metrics'][2]['value']['share']}
+## Step 3: Start a Local Prefect Server
 
-    df_report = pd.DataFrame([report_dict])
+Open a new terminal in the same virtual environment and start the local Prefect server:
 
-    logger.info(f"Dataframe: {df_report.head()}")
-
-    df_report.to_sql(name="drift_metrics", con=engine, if_exists="append", index=False)
+```bash
+prefect server start
 ```
 
-You will need a `reference_data.parquet` file to run it. You can create your reference data with the code provided in 03-intro-to-evidently.ipynb and store it as a parquet file.
-
-
-## **Scheduling Predictions with Prefect**
-
-In this section, we will **schedule the batch predictions** using **Prefect** — a modern **workflow orchestration system** that makes it easy to **automate, schedule, and monitor** your data pipelines.
-
-Prefect allows you to define your Python workflows (called *flows*) and then execute them automatically on a schedule, either **locally** or using **Prefect Cloud**.
-
-You can learn more from the official [Prefect documentation](https://docs.prefect.io/v3/) and review the **Workflow Orchestration** materials from the previous week for background.
-
-### **Step 1 — Configure Prefect to Use the Local Server**
-Once the Prefect server is running, Prefect needs to know **where** to send API requests.  
-You’ll do this by setting the environment variable `PREFECT_API_URL` so that your local Prefect client connects to the running server.
-
-Open **another terminal window** (keep the server running in the first one and make sure to be in the same Python environment where Prefect is installed), and run:
+In another terminal, point the Prefect client at that server:
 
 ```bash
 prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
-```
-This tells Prefect to use the server’s API, which by default runs at `http://127.0.0.1:4200/api`.
-
-To make sure the configuration was set correctly, you can run in the same terminal:
-
-#### Test the configuration
-```bash
 prefect config view
 ```
 
-You should see:
-```bash
-PREFECT_PROFILE='local'
-PREFECT_API_URL='http://127.0.0.1:4200/api'
-```
-#### Test the connection to the API
+You should see `PREFECT_API_URL='http://127.0.0.1:4200/api'`.
 
-You can also check that the Prefect API is live by visiting:
-[http://127.0.0.1:4200/docs](http://127.0.0.1:4200/docs).
-This opens the Prefect interactive API documentation (Swagger UI), which confirms your local server is running and accessible. Please feel free to explore the available endpoints.
+You can also confirm that the API is reachable at [http://127.0.0.1:4200/docs](http://127.0.0.1:4200/docs).
 
----
+## Step 4: Create the Deployment
 
-### **Step 2 — Create a Prefect Deployment**
+The deployment helper lives in [src/prefect_deploy.py](./src/prefect_deploy.py). It schedules the flow to start two minutes after launch, then repeat every two months.
 
-Now that our Prefect flow is defined in `prefect_flow.py`, it’s time to make it **deployable and schedulable**.  
+Run it from the repository root:
 
-In Prefect, a **deployment** is a specific configuration of a flow that includes:
-- Its **schedule** (when it should run)
-- Any **default parameters**
-- Optional **tags** and **metadata**
-
-Deployments let you run your flow automatically — either on a **regular schedule** or in response to **specific events**.
-
-#### 2.1 Create a Deployment Script
-We’ll create a new Python file called `prefect_deploy.py` in the same folder as `prefect_flow.py`.  
-This script will:
-1. Import your Prefect flow  
-2. Load environment variables from `.env`  
-3. Define a schedule using an [RFC 5545 RRule](https://datatracker.ietf.org/doc/html/rfc5545)  
-4. Serve the flow deployment locally using `run.serve()` so Prefect can execute it automatically
-
-Here’s the complete code:
-
-```python
-import os
-from dotenv import load_dotenv
-from datetime import datetime, timezone, timedelta
-from predict_flow import run
-from prefect.client.schemas.schedules import RRuleSchedule, CronSchedule 
-
-
-# Load environment variables from a .env file
-load_dotenv()
-
-# Start the first run 2 minutes from now, then every 2 months on the same day and time
-now = datetime.now(timezone.utc) + timedelta(minutes=2)
-rrule_string = (
-    f"DTSTART:{now.strftime('%Y%m%dT%H%M%SZ')}\n"
-    f"FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY={now.day};BYHOUR={now.hour};BYMINUTE={now.minute}"
-)
-
-schedule_rule = RRuleSchedule(rrule=rrule_string)
-
-if __name__ == "__main__":
-    # Start the flow with a schedule
-    run.serve(
-        name="ride_duration_prediction_monitoring",
-        schedules=[
-            schedule_rule,
-            ],
-        parameters={
-            "run_id": os.getenv("RUN_ID"),
-            "gcp_key": os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
-            "mlflow_tracking_uri": os.getenv("MLFLOW_TRACKING_URI"),
-            "year":2025,
-            "month":2,
-        },
-        tags=["batch", "predict", "prefect"],
-    )
-```
-**What this Schedule does**:
-- Starts the first flow run **two minutes after you execute the script**,so you can test it immediately.
-- Then repeats **every two months**, on the **same day and time** as that first run.
-- You can modify the rule to any schedule you like.
-
-For example, to run the flow **every month on the 2nd at 3:00am**, you could use the following `rrule_string`  in the script:
-
-```python
-# Run on the 2nd day of every month at 3:00 AM
-rrule_string = "FREQ=MONTHLY;BYMONTHDAY=2;BYHOUR=3;BYMINUTE=0"
-```
-
-
-**What the `run.serve()` function does behind the scenes is**:
-
-1. **Registers your flow** with the Prefect API or server.  
-   - You’ll see it appear under **Deployments** in the Prefect UI.  
-2. **Creates and applies the schedule** you defined (e.g., via `RRuleSchedule` or `CronSchedule`).  
-3. **Starts a lightweight background process** that continuously polls the Prefect server for upcoming scheduled runs.  
-4. **Passes the parameters** you specified to each flow run.
-
----
-
-#### **2.2 — Run the Deployment**
-
-Now you can run the deployment script to **register your flow** and **start the schedule**.
-
-Open a **new terminal window** — keep your Prefect server running in the first one —  
-and make sure you’ve **activated the same Python environment** where Prefect is installed.
-
-Then, run one of the following commands depending on your current directory:
-
-If you are in the **project root**:
 ```bash
 python src/prefect_deploy.py
 ```
-Once executed , Prefect will:
-1. Register your flow as a deployment with the Prefect server
-2. Start serving and polling for scheduled runs
-3. Display a confirmation message in your terminal
-   
 
-You should see something like this — and the terminal window will remain open, continuously polling for upcoming scheduled runs:
+Behind the scenes, `run.serve(...)`:
+
+- registers the flow with the local Prefect API;
+- applies the schedule;
+- starts a lightweight worker process that keeps polling for scheduled runs;
+- passes your `.env` values into each run.
+
+## Step 5: Trigger a Few Monitoring Runs
+
+Once the deployment is visible in the Prefect UI, trigger a few runs manually so you can compare different months.
+
+Suggested checks:
+
+1. run `2025-02` first to populate the dashboard;
+2. run a nearby month such as `2025-03` to see a modest change;
+3. run `2025-05` and compare whether the drift metrics move more noticeably.
+
+When you create a manual run in the Prefect UI, open the run parameters and change only `year` and `month`. Keep `run_id`, `mlflow_tracking_uri`, and `database_url` aligned with your `.env` file.
+
+You can also keep the scheduled deployment and wait for the first run to start automatically.
+
+If you prefer running the flow directly from Python for a quick smoke test, use:
+
 ```bash
-Your flow 'Predict Green Taxi Trip Duration' is being served and polling for scheduled runs!
-
-To trigger a run for this flow, use the following command:
-
-        $ prefect deployment run 'Predict Green Taxi Trip Duration/ride_duration_prediction_monitoring'
-
-You can also run your flow via the Prefect UI: http://127.0.0.1:4200/deployments/deployment/deployment_id_here
+python src/predict_flow.py
 ```
 
-<div style="
-  display:block;
-  max-width:80%;
-  padding:0.75rem 1rem;
-  border-left:4px solid #0957de;
-  background:#f5f9ff;
-  color:#093170;
-  border-radius:4px;
-  font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  font-size:0.95rem;
-  line-height:1.5;
-  text-indent:-2.2rem;
-  padding-left:3rem;">
-  💡 <strong style="color:#0957de;">Note:</strong> The first run of the deployment is scheduled to start within about two minutes after you execute the script. 
-</div>
+## Step 6: Explore the Dashboard
 
-You can follow the link provided in the terminal output if you want to run the flow directly via the Prefect UI, then click the <strong>Run ▶️</strong> buttun (top right). ![](./images/run_different_month.png). Repeat this a few times with different months and you should see the data in the database and the grafana dashboard should start to show some data. Finally use the year `2025` and month `5` to see the data drift.
+After one or more runs complete, refresh Grafana and open the provisioned dashboard. The key panels summarize:
 
-## **Next Steps**
+- prediction drift over time;
+- number of drifted columns per batch;
+- share of missing prediction values.
 
-Retrain the model with the new data and deploy it again. You should see that the data drift is gone.
+That view is useful because a single batch rarely tells the whole story. Monitoring becomes more interesting once you can compare several runs and ask whether the signal is noisy, stable, or worsening.
+
+The next notebook shows how to use those monitoring signals to retrain a candidate model and promote it only if it wins on a fresh labeled batch.
+
+## Troubleshooting
+
+### Grafana is empty
+
+Check that:
+
+- the Prefect run completed successfully;
+- `data/reference_data.parquet` exists;
+- `RUN_ID` points to a real MLflow run;
+- Postgres is reachable on `localhost:5555`.
+
+### Prefect cannot connect to the API
+
+Restart the local server and reapply the config:
+
+```bash
+prefect server start
+prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
+```
+
+### The flow cannot find the MLflow run
+
+Verify that `MLFLOW_TRACKING_URI` points to the same tracking store you used in notebook 1. If you trained the model with a local store, keep using that same local path or server URI here.
+
+### The flow cannot find the reference dataset
+
+Re-run the final cell from [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb), which saves:
+
+```bash
+data/reference_data.parquet
+```
+
+## What You Built
+
+By the end of this chapter, you have a compact local monitoring loop:
+
+- MLflow keeps the model artifact reachable;
+- Prefect schedules recurring scoring runs;
+- Evidently computes monitoring signals;
+- Postgres stores those signals;
+- Grafana turns them into a dashboard you can inspect over time.
