@@ -36,7 +36,7 @@ def preprocess(
 
 
 def load_model(run_id: str, mlflow_tracking_uri: str):
-    """Load the exact model run selected by the learner's RUN_ID setting."""
+    """Load the exact model run selected by the RUN_ID setting."""
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     logged_model = f"runs:/{run_id}/mlflow-model"
     return mlflow.pyfunc.load_model(logged_model)
@@ -118,7 +118,7 @@ def apply_model(
             "Run the final cell from 03-intro-to-evidently.ipynb first."
         )
 
-    # Notebook 3 writes this file after scoring the reference split.
+    # Notebook 03 writes this file after scoring the reference split.
     reference_data = pd.read_parquet(REFERENCE_DATA_PATH)
 
     cat_features = ["PULocationID", "DOLocationID"]
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         raise ValueError("MLFLOW_TRACKING_URI is missing. Add it to your .env file.")
     if not run_id:
         raise ValueError(
-            "RUN_ID is missing. Add it to your .env file after notebook 1."
+            "RUN_ID is missing. Add it to your .env file after notebook 01."
         )
 
     run(

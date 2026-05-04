@@ -1,6 +1,6 @@
 services:
   db_service:
-    image: postgres:latest
+    image: postgres:17
     container_name: postgres_db
     restart: always
     environment:
@@ -15,7 +15,7 @@ services:
       - monitoring-net
 
   grafana_service:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.0.1
     container_name: grafana
     depends_on:
       - db_service 

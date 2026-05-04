@@ -2,22 +2,22 @@
 
 This chapter turns the earlier notebook work into a small local monitoring system. We will:
 
-1. start a local Postgres and Grafana stack;
-2. run a Prefect flow that loads a registered MLflow model;
-3. compare fresh batch data to the saved reference dataset;
-4. store the resulting drift metrics in Postgres;
+1. start a local Postgres and Grafana stack,
+2. run a Prefect flow that loads a registered MLflow model,
+3. compare fresh batch data to the saved reference dataset,
+4. store the resulting drift metrics in Postgres,
 5. inspect the monitoring dashboard in Grafana.
 
 ```mermaid
 flowchart LR
-    A["Monthly taxi batch"] --> B["Prefect flow"]
-    B --> C["Load MLflow model"]
-    B --> D["Load reference_data.parquet"]
+    A["Monthly<br>taxi batch"] --> B["Prefect<br>flow"]
+    B --> C["Load MLflow<br>model"]
+    B --> D["Load<br>reference_data.parquet"]
     C --> E["Generate predictions"]
-    D --> F["Evidently report"]
+    D --> F["Evidently<br>report"]
     E --> F
-    F --> G["drift_metrics table in Postgres"]
-    G --> H["Grafana dashboard"]
+    F --> G["drift_metrics table<br>in Postgres"]
+    G --> H["Grafana<br>dashboard"]
 ```
 
 ## Prerequisites
@@ -37,14 +37,14 @@ PREFECT_API_URL=http://127.0.0.1:4200/api
 DATABASE_URL=postgresql://postgres:postgres@localhost:5555/ny_taxi
 ```
 
-## Step 1: Start the Local Monitoring Stack
+## Step 1: Start the local monitoring stack
 
-The repository already includes a Docker Compose file for Postgres and Grafana. The excerpt below shows the services learners interact with most directly; the full file also defines persistent Docker volumes and a shared network:
+The repository already includes a Docker Compose file for Postgres and Grafana. The excerpt below shows the services you interact with most directly; the full file also defines persistent Docker volumes and a shared network:
 
 ```yaml
 services:
   db_service:
-    image: postgres:latest
+    image: postgres:17
     container_name: postgres_db
     restart: always
     environment:
@@ -55,7 +55,7 @@ services:
       - "5555:5432"
 
   grafana_service:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.0.1
     container_name: grafana
     depends_on:
       - db_service
@@ -76,24 +76,24 @@ docker compose up -d
 
 Open Grafana at [http://127.0.0.1:3000](http://127.0.0.1:3000). The default username and password are both `admin`. Grafana may ask you to change the password on first login; for a local lesson environment, you can skip that prompt.
 
-The Grafana provisioning files are already committed:
+The Grafana provisioning files are already included:
 
-- [grafana/provisioning/datasources/postgres_ds.yml](./grafana/provisioning/datasources/postgres_ds.yml)
+- [grafana/provisioning/datasources/postgres_ds.yaml](./grafana/provisioning/datasources/postgres_ds.yaml)
 - [grafana/provisioning/dashboards/grafana_dashboards.yaml](./grafana/provisioning/dashboards/grafana_dashboards.yaml)
 - [grafana/dashboards/data_drift.json](./grafana/dashboards/data_drift.json)
 
 At this point the dashboard loads, but it will stay empty until the Prefect flow inserts rows into the `drift_metrics` table.
 
-## Step 2: Understand the Batch Monitoring Flow
+## Step 2: Understand the batch monitoring flow
 
 The batch monitoring logic lives in [src/predict_flow.py](./src/predict_flow.py).
 
 The flow does four important things:
 
-1. downloads or reads the current month of taxi rides;
-2. loads the registered model from MLflow;
-3. compares reference data and current predictions with Evidently;
-4. writes a small metrics record into Postgres.
+1. Downloads or reads the current month of taxi rides.
+2. Loads the registered model from MLflow.
+3. Compares reference data and current predictions with Evidently.
+4. Writes a small metrics record into Postgres.
 
 The database insert is intentionally narrow so the dashboard stays easy to read:
 
@@ -106,13 +106,13 @@ report_dict = {
 }
 ```
 
-Those three values are enough to answer a first monitoring question:
+Those three values are enough to answer the first monitoring questions:
 
-- are predictions drifting?
-- how many columns are drifting?
-- are missing values becoming a problem?
+- Are predictions drifting?
+- How many columns are drifting?
+- Are missing values becoming a problem?
 
-## Step 3: Start a Local Prefect Server
+## Step 3: Start a local Prefect server
 
 Open a new terminal in the same virtual environment and start the local Prefect server:
 
@@ -131,7 +131,7 @@ You should see `PREFECT_API_URL='http://127.0.0.1:4200/api'`.
 
 You can also confirm that the API is reachable at [http://127.0.0.1:4200/docs](http://127.0.0.1:4200/docs).
 
-## Step 4: Create the Deployment
+## Step 4: Create the deployment
 
 The deployment helper lives in [src/prefect_deploy.py](./src/prefect_deploy.py). It schedules the flow to start two minutes after launch, then repeat every two months.
 
@@ -143,22 +143,22 @@ python src/prefect_deploy.py
 
 Behind the scenes, `run.serve(...)`:
 
-- registers the flow with the local Prefect API;
-- applies the schedule;
-- starts a lightweight worker process that keeps polling for scheduled runs;
+- registers the flow with the local Prefect API,
+- applies the schedule,
+- starts a lightweight worker process that keeps polling for scheduled runs,
 - passes your `.env` values into each run.
 
-## Step 5: Trigger a Few Monitoring Runs
+## Step 5: Trigger a few monitoring runs
 
 Once the deployment is visible in the Prefect UI, trigger a few runs manually so you can compare different months.
 
 Suggested checks:
 
-1. run `2025-02` first to populate the dashboard;
-2. run a nearby month such as `2025-03` to see a modest change;
-3. run `2025-05` and compare whether the drift metrics move more noticeably.
+1. Run `2025-02` first to populate the dashboard.
+2. Run a nearby month such as `2025-03` to see a modest change.
+3. Run `2025-05` and compare whether the drift metrics move more noticeably.
 
-When you create a manual run in the Prefect UI, open the run parameters and change only `year` and `month`. Keep `run_id`, `mlflow_tracking_uri`, and `database_url` aligned with your `.env` file.
+When you create a manual run in the Prefect UI, open the run parameters and change only `year` and `month`. Keep `run_id`, `mlflow_tracking_uri` and `database_url` aligned with your `.env` file.
 
 You can also keep the scheduled deployment and wait for the first run to start automatically.
 
@@ -168,15 +168,15 @@ If you prefer running the flow directly from Python for a quick smoke test, use:
 python src/predict_flow.py
 ```
 
-## Step 6: Explore the Dashboard
+## Step 6: Explore the dashboard
 
 After one or more runs complete, refresh Grafana and open the provisioned dashboard. The key panels summarize:
 
-- prediction drift over time;
-- number of drifted columns per batch;
+- prediction drift over time,
+- number of drifted columns per batch,
 - share of missing prediction values.
 
-That view is useful because a single batch rarely tells the whole story. Monitoring becomes more interesting once you can compare several runs and ask whether the signal is noisy, stable, or worsening.
+That view is useful because a single batch rarely tells the whole story. Monitoring becomes more interesting once you can compare several runs and ask whether the signal is noisy, stable or worsening.
 
 The next notebook shows how to use those monitoring signals to retrain a candidate model and promote it only if it wins on a fresh labeled batch.
 
@@ -186,9 +186,9 @@ The next notebook shows how to use those monitoring signals to retrain a candida
 
 Check that:
 
-- the Prefect run completed successfully;
-- `data/reference_data.parquet` exists;
-- `RUN_ID` points to a real MLflow run;
+- the Prefect run completed successfully,
+- `data/reference_data.parquet` exists,
+- `RUN_ID` points to a real MLflow run,
 - Postgres is reachable on `localhost:5555`.
 
 ### Prefect cannot connect to the API
@@ -202,7 +202,7 @@ prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
 
 ### The flow cannot find the MLflow run
 
-Verify that `MLFLOW_TRACKING_URI` points to the same tracking store you used in notebook 1. If you trained the model with a local store, keep using that same local path or server URI here.
+Verify that `MLFLOW_TRACKING_URI` points to the same tracking store you used in notebook 01. If you trained the model with a local store, keep using that same local path or server URI here.
 
 ### The flow cannot find the reference dataset
 
@@ -212,12 +212,12 @@ Re-run the final cell from [03-intro-to-evidently.ipynb](./03-intro-to-evidently
 data/reference_data.parquet
 ```
 
-## What You Built
+## What you built
 
 By the end of this chapter, you have a compact local monitoring loop:
 
-- MLflow keeps the model artifact reachable;
-- Prefect schedules recurring scoring runs;
-- Evidently computes monitoring signals;
-- Postgres stores those signals;
+- MLflow keeps the model artifact reachable.
+- Prefect schedules recurring scoring runs.
+- Evidently computes monitoring signals.
+- Postgres stores those signals.
 - Grafana turns them into a dashboard you can inspect over time.

@@ -1,33 +1,33 @@
 # Monitoring in ML
 
-This repository teaches a practical monitoring workflow for a regression model trained on the NYC Green Taxi dataset. You start by training and tracking a model with MLflow, then inspect drift manually, then use Evidently to automate checks, and finally wire the results into a local monitoring stack built with Prefect, Postgres, and Grafana.
+This repository shows a practical monitoring workflow for a regression model trained on the NYC Green Taxi dataset. You start by training and tracking a model with MLflow, inspect drift manually, then use Evidently to automate checks, and finally wire the results into a local monitoring stack built with Prefect, Postgres and Grafana.
 
 ## Learning Path
 
-1. [01-train-ml-model.ipynb](./01-train-ml-model.ipynb) trains a baseline trip-duration model and registers it in MLflow.
-2. [02-intro-to-drift.ipynb](./02-intro-to-drift.ipynb) compares two months of taxi rides and measures drift with statistical distances.
-3. [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb) creates Evidently reports and saves a reference dataset for later monitoring.
-4. [04-evidently-in-batch-predictions.md](./04-evidently-in-batch-predictions.md) schedules batch monitoring with Prefect and visualizes metrics in Grafana.
-5. [05-retrain-after-drift.ipynb](./05-retrain-after-drift.ipynb) retrains the model on a fresh labeled batch and promotes it if it improves the holdout score.
+- [01 - Train an ML model](./01-train-ml-model.ipynb): Train a baseline trip-duration model and register it in MLflow.
+- [02 - Intro to model and data drift](./02-intro-to-drift.ipynb): Compare two months of taxi rides and measure drift with statistical distances.
+- [03 - Intro to Evidently](./03-intro-to-evidently.ipynb): Create Evidently reports and save a reference dataset for later monitoring.
+- [04 - Evidently in batch predictions](./04-evidently-in-batch-predictions.md): Schedule batch monitoring with Prefect and visualize metrics in Grafana.
+- [05 - Retraining after drift](./05-retrain-after-drift.ipynb): Retrain the model on a fresh labeled batch and promote it if it improves the holdout score.
 
 ```mermaid
 flowchart LR
-    A["Train baseline model"] --> B["Register model in MLflow"]
-    B --> C["Compare reference and current data"]
-    C --> D["Schedule batch checks with Prefect"]
-    D --> E["Create Evidently report"]
-    E --> F["Store drift metrics in Postgres"]
-    F --> G["Explore trends in Grafana"]
+    A["Train baseline<br>model"] --> B["Register model<br>in MLflow"]
+    B --> C["Compare reference<br>and current data"]
+    C --> D["Schedule batch checks<br>with Prefect"]
+    D --> E["Create Evidently<br>report"]
+    E --> F["Store drift metrics<br>in Postgres"]
+    F --> G["Explore trends<br>in Grafana"]
 ```
 
 ## Local Data Services
 
-The batch-monitoring chapter uses a local monitoring stack defined in [docker-compose.yml](./docker-compose.yml):
+The batch monitoring chapter uses a local monitoring stack defined in [docker-compose.yaml](./docker-compose.yaml):
 
 - `Postgres` stores drift metrics produced by the Prefect flow.
 - `Grafana` reads that table and displays the provisioned monitoring dashboard.
 
-Bring the stack up when you are ready for the batch-monitoring chapter:
+Bring the stack up when you are ready for the batch monitoring chapter:
 
 ```bash
 docker compose up -d
@@ -41,11 +41,16 @@ The default local endpoints are:
 
 ## Mermaid Diagrams
 
-The Mermaid diagram in this README renders directly on GitHub and in other Mermaid-capable Markdown previewers.
+This repository contains Mermaid diagrams. If you want them to render in VS Code, we recommend installing the `Markdown Preview Mermaid Support` extension:
 
-## Create the Python environment
+- [Install in VS Code](vscode:extension/bierner.markdown-mermaid)
+- [View on Marketplace](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid)
 
-### `macOS` / `Linux`
+## Environment
+
+Please make sure you **use this repository as a template** and set up a new virtual environment. You can use the following commands:
+
+### **`macOS`** / **`Linux`**
 
 ```bash
 pyenv local 3.11.3
@@ -55,7 +60,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-### `Windows`
+### **`Windows`**
 
 For `Git Bash` CLI:
 
@@ -113,10 +118,10 @@ You can still open the MLflow UI at `http://127.0.0.1:5000`.
 
 By the end of this repository, you should be able to:
 
-- train and track a regression model with MLflow;
-- distinguish data drift from prediction drift;
-- build and interpret an Evidently monitoring report;
-- save a reusable reference dataset for production-style checks;
-- schedule recurring monitoring runs with Prefect;
-- retrain and promote a refreshed model when drift signals justify it;
-- visualize drift metrics in Grafana from a Postgres table.
+- Train and track a regression model with MLflow.
+- Distinguish data drift from prediction drift.
+- Build and interpret an Evidently monitoring report.
+- Save a reusable reference dataset for production-style checks.
+- Schedule recurring monitoring runs with Prefect.
+- Retrain and promote a refreshed model when drift signals justify it.
+- Visualize drift metrics in Grafana from a Postgres table.

@@ -9,7 +9,7 @@ from predict_flow import run
 # Load local connection settings used by the scheduled flow parameters below.
 load_dotenv()
 
-# Start the first run shortly after launch so learners can see the deployment run
+# Start the first run shortly after launch so you can see the deployment run
 # without waiting for a real monthly schedule tick.
 now = datetime.now(timezone.utc) + timedelta(minutes=2)
 rrule_string = (
