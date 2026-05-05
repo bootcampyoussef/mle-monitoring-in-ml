@@ -24,9 +24,9 @@ flowchart LR
 
 Before starting this chapter, make sure you have already:
 
-- completed [01-train-ml-model.ipynb](./01-train-ml-model.ipynb), copied the printed `RUN_ID`, and pasted it into `.env`;
-- completed [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb) and created `data/reference_data.parquet`;
-- copied `.env.example` to `.env` and filled in at least `MLFLOW_TRACKING_URI` and `RUN_ID`.
+- copied `.env.example` to `.env`;
+- completed [01-train-ml-model.ipynb](./01-train-ml-model.ipynb), copied the printed `RUN_ID` and pasted it into `.env`;
+- completed [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb) and created `data/reference_data.parquet`.
 
 Your `.env` file should look like this:
 
@@ -39,7 +39,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5555/ny_taxi
 
 ## Step 1: Start the local monitoring stack
 
-The repository already includes a Docker Compose file for Postgres and Grafana. The excerpt below shows the services you interact with most directly; the full file also defines persistent Docker volumes and a shared network:
+The repository includes a Docker Compose file for Postgres and Grafana. The excerpt below shows the services you interact with most directly; the full file also defines persistent Docker volumes and a shared network:
 
 ```yaml
 services:
