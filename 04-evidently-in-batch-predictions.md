@@ -24,7 +24,7 @@ flowchart LR
 
 Before starting this chapter, make sure you have already:
 
-- completed [01-train-ml-model.ipynb](./01-train-ml-model.ipynb) and saved the resulting `RUN_ID`;
+- completed [01-train-ml-model.ipynb](./01-train-ml-model.ipynb), copied the printed `RUN_ID`, and pasted it into `.env`;
 - completed [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb) and created `data/reference_data.parquet`;
 - copied `.env.example` to `.env` and filled in at least `MLFLOW_TRACKING_URI` and `RUN_ID`.
 
