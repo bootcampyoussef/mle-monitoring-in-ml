@@ -39,13 +39,6 @@ The default local endpoints are:
 - Postgres: `localhost:5555`
 - Prefect UI: `http://127.0.0.1:4200`
 
-## Mermaid Diagrams
-
-This repository contains Mermaid diagrams. If you want them to render in VS Code, we recommend installing the `Markdown Preview Mermaid Support` extension:
-
-- [Install in VS Code](vscode:extension/bierner.markdown-mermaid)
-- [View on Marketplace](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid)
-
 ## Environment
 
 Please make sure you **use this repository as a template** and set up a new virtual environment. You can use the following commands:
