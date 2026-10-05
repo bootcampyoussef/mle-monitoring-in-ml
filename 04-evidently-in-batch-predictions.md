@@ -24,8 +24,8 @@ flowchart LR
 
 Before starting this chapter, make sure you have already:
 
-- copied `.env.example` to `.env`;
-- completed [01-train-ml-model.ipynb](./01-train-ml-model.ipynb), copied the printed `RUN_ID` and pasted it into `.env`;
+- copied `.env.example` to `.env`,
+- completed [01-train-ml-model.ipynb](./01-train-ml-model.ipynb), copied the printed `RUN_ID` and pasted it into `.env`,
 - completed [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb) and created `data/reference_data.parquet`.
 
 Your `.env` file should look like this:
@@ -99,7 +99,7 @@ The database insert is intentionally narrow so the dashboard stays easy to read:
 
 ```python
 report_dict = {
-    "timestamp": datetime.now(timezone.utc),
+    "timestamp": datetime.now(UTC),
     "prediction_drift": result["metrics"][0]["value"],
     "num_drifted_columns": result["metrics"][1]["value"]["count"],
     "share_missing_values": result["metrics"][2]["value"]["share"],
@@ -129,7 +129,7 @@ uv run prefect config view
 
 You should see `PREFECT_API_URL='http://127.0.0.1:4200/api'`.
 
-You can also confirm that the API is reachable at [http://127.0.0.1:4200/docs](http://127.0.0.1:4200/docs).
+You can also confirm that the API is reachable at [http://127.0.0.1:4200/docs](http://127.0.0.1:4200/docs) and the dashboard is reachable at <http://127.0.0.1:4200>.
 
 ## Step 4: Create the deployment
 
@@ -176,7 +176,7 @@ After one or more runs complete, refresh Grafana and open the provisioned dashbo
 - number of drifted columns per batch,
 - share of missing prediction values.
 
-That view is useful because a single batch rarely tells the whole story. Monitoring becomes more interesting once you can compare several runs and ask whether the signal is noisy, stable or worsening.
+That view is useful because a single batch rarely tells the whole story. Monitoring becomes more interesting once you can compare several runs and ask whether the signal is noisy, stable, or worsening.
 
 The next notebook shows how to use those monitoring signals to retrain a candidate model and promote it only if it wins on a fresh labeled batch.
 
