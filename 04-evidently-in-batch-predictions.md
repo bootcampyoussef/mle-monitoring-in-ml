@@ -206,11 +206,7 @@ Verify that `MLFLOW_TRACKING_URI` points to the same tracking store you used in 
 
 ### The flow cannot find the reference dataset
 
-Re-run the final cell from [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb), which saves:
-
-```bash
-data/reference_data.parquet
-```
+Re-run the final cell from [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb), which saves `data/reference_data.parquet`.
 
 ## What you built
 
