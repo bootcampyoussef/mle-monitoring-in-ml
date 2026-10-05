@@ -29,7 +29,8 @@ if __name__ == "__main__":
             "run_id": os.getenv("RUN_ID"),
             "mlflow_tracking_uri": os.getenv("MLFLOW_TRACKING_URI"),
             "database_url": os.getenv(
-                "DATABASE_URL", "postgresql://postgres:postgres@localhost:5555/ny_taxi"
+                "DATABASE_URL",
+                "postgresql+psycopg://postgres:postgres@localhost:5555/ny_taxi",
             ),
             "year": 2025,
             "month": 2,

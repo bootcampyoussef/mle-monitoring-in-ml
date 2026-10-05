@@ -15,7 +15,7 @@ from sqlalchemy import create_engine
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
 REFERENCE_DATA_PATH = DATA_DIR / "reference_data.parquet"
-DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@localhost:5555/ny_taxi"
+DEFAULT_DATABASE_URL = "postgresql+psycopg://postgres:postgres@localhost:5555/ny_taxi"
 
 
 def preprocess(

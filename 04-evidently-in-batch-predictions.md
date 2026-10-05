@@ -34,7 +34,7 @@ Your `.env` file should look like this:
 MLFLOW_TRACKING_URI=sqlite:///mlflow.db
 RUN_ID=<paste-your-run-id-here>
 PREFECT_API_URL=http://127.0.0.1:4200/api
-DATABASE_URL=postgresql://postgres:postgres@localhost:5555/ny_taxi
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5555/ny_taxi
 ```
 
 ## Step 1: Start the local monitoring stack
