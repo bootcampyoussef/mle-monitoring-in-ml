@@ -88,14 +88,15 @@ def create_report(
     ).dict()
 
 
-def load_report(result: dict, database_url: str) -> None:
+def load_report(result: dict, database_url: str, batch_month: datetime) -> None:
     """Persist the small metric set that powers the Grafana dashboard."""
     logger = get_run_logger()
     logger.info("Loading results to database")
     engine = create_engine(database_url)
 
     report_dict = {
-        "timestamp": datetime.now(UTC),
+        # Plot each run at the month of data it scored, not at the time it ran.
+        "timestamp": batch_month,
         "prediction_drift": result["metrics"][0]["value"],
         "num_drifted_columns": result["metrics"][1]["value"]["count"],
         "share_missing_values": result["metrics"][2]["value"]["share"],
@@ -108,7 +109,11 @@ def load_report(result: dict, database_url: str) -> None:
 
 @task
 def apply_model(
-    filename: str, model_name: str, mlflow_tracking_uri: str, database_url: str
+    filename: str,
+    batch_month: datetime,
+    model_name: str,
+    mlflow_tracking_uri: str,
+    database_url: str,
 ) -> None:
     logger = get_run_logger()
     logger.info("Reading current batch from %s", filename)
@@ -142,7 +147,7 @@ def apply_model(
     result = create_report(
         reference_data, current_data, num_features, cat_features, pred_col="prediction"
     )
-    load_report(result, database_url)
+    load_report(result, database_url, batch_month)
 
 
 @flow(name="Predict Green Taxi Trip Duration")
@@ -158,7 +163,8 @@ def run(
 
     # Pandas can stream this Parquet file directly from the public NYC TLC bucket.
     filename = f"https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{year}-{month:02d}.parquet"
-    apply_model(filename, model_name, mlflow_tracking_uri, database_url)
+    batch_month = datetime(year, month, 1, tzinfo=UTC)
+    apply_model(filename, batch_month, model_name, mlflow_tracking_uri, database_url)
 
 
 if __name__ == "__main__":

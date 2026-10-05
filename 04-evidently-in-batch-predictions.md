@@ -175,6 +175,8 @@ After one or more runs complete, refresh Grafana and open the provisioned dashbo
 - number of drifted columns per batch,
 - share of missing prediction values.
 
+Each point sits at the month of data it scored, not at the time the run happened, so the panels read as a timeline whatever order you trigger the runs in. Running the same month again adds a second point at the same date.
+
 That view is useful because a single batch rarely tells the whole story. Monitoring becomes more interesting once you can compare several runs and ask whether the signal is noisy, stable, or worsening.
 
 The next notebook shows how to use those monitoring signals to retrain a candidate model and promote it only if it wins on a fresh labeled batch.

@@ -26,7 +26,9 @@ if __name__ == "__main__":
         name="ride_duration_prediction_monitoring",
         schedules=[schedule_rule],
         parameters={
-            "mlflow_tracking_uri": os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"),
+            "mlflow_tracking_uri": os.getenv(
+                "MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"
+            ),
             "database_url": os.getenv(
                 "DATABASE_URL",
                 "postgresql+psycopg://postgres:postgres@localhost:5555/ny_taxi",
