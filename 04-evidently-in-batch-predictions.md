@@ -114,17 +114,17 @@ Those three values are enough to answer the first monitoring questions:
 
 ## Step 3: Start a local Prefect server
 
-Open a new terminal in the same virtual environment and start the local Prefect server:
+Open a new terminal in the repository root and start the local Prefect server:
 
 ```bash
-prefect server start
+uv run prefect server start
 ```
 
 In another terminal, point the Prefect client at that server:
 
 ```bash
-prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
-prefect config view
+uv run prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
+uv run prefect config view
 ```
 
 You should see `PREFECT_API_URL='http://127.0.0.1:4200/api'`.
@@ -138,7 +138,7 @@ The deployment helper lives in [src/prefect_deploy.py](./src/prefect_deploy.py).
 Run it from the repository root:
 
 ```bash
-python src/prefect_deploy.py
+uv run src/prefect_deploy.py
 ```
 
 Behind the scenes, `run.serve(...)`:
@@ -165,7 +165,7 @@ You can also keep the scheduled deployment and wait for the first run to start a
 If you prefer running the flow directly from Python for a quick smoke test, use:
 
 ```bash
-python src/predict_flow.py
+uv run src/predict_flow.py
 ```
 
 ## Step 6: Explore the dashboard
@@ -196,8 +196,8 @@ Check that:
 Restart the local server and reapply the config:
 
 ```bash
-prefect server start
-prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
+uv run prefect server start
+uv run prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
 ```
 
 ### The flow cannot find the MLflow run
