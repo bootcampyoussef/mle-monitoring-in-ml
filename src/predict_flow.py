@@ -25,7 +25,7 @@ def preprocess(
     df = pd.read_parquet(filename)
 
     # Duration is the supervised label; filtering keeps training and monitoring
-    # aligned with the outlier rules introduced in notebook 1.
+    # aligned with the outlier rules introduced in notebook 01.
     df["duration"] = (
         df["lpep_dropoff_datetime"] - df["lpep_pickup_datetime"]
     ).dt.total_seconds() / 60

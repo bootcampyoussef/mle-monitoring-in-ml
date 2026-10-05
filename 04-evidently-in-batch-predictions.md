@@ -55,7 +55,7 @@ services:
       - "5555:5432"
 
   grafana_service:
-    image: grafana/grafana:13.0.1
+    image: grafana/grafana:13.2.3
     container_name: grafana
     depends_on:
       - db_service
