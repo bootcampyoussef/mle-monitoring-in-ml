@@ -30,7 +30,9 @@ def preprocess(
         df["lpep_dropoff_datetime"] - df["lpep_pickup_datetime"]
     ).dt.total_seconds() / 60
     df = df[(df["duration"] >= 1) & (df["duration"] <= 60)]
-    df = df[(df["passenger_count"] > 0) & (df["passenger_count"] < 8)]
+    df = df[df["trip_distance"].between(0.1, 100)]
+    # The model one-hot encodes the location IDs, so they must be strings.
+    df[cat_features] = df[cat_features].astype(str)
     return df[cat_features + num_features + [target]]
 
 
@@ -121,7 +123,7 @@ def apply_model(
     reference_data = pd.read_parquet(REFERENCE_DATA_PATH)
 
     cat_features = ["PULocationID", "DOLocationID"]
-    num_features = ["trip_distance", "passenger_count", "fare_amount", "total_amount"]
+    num_features = ["trip_distance"]
     target = "duration"
 
     current_data = preprocess(filename, num_features, cat_features, target)
@@ -129,7 +131,7 @@ def apply_model(
     logger.info("Loading model run %s", run_id)
     loaded_model = load_model(run_id, mlflow_tracking_uri)
     current_data["prediction"] = loaded_model.predict(
-        current_data[cat_features + num_features]
+        current_data[cat_features + num_features].to_dict(orient="records")
     )
 
     logger.info("Creating Evidently report")

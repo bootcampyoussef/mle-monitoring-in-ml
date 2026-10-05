@@ -68,7 +68,7 @@ services:
       - grafana-data:/var/lib/grafana
 ```
 
-Start the services from the repository root:
+Open a new terminal in the repository root and start the services:
 
 ```bash
 docker compose up -d
@@ -114,7 +114,7 @@ Those three values are enough to answer the first monitoring questions:
 
 ## Step 3: Start a local Prefect server
 
-Open a new terminal in the repository root and start the local Prefect server:
+From the repository root, start the local Prefect server:
 
 ```bash
 uv run prefect server start
@@ -154,9 +154,9 @@ Once the deployment is visible in the Prefect UI, trigger a few runs manually so
 
 Suggested checks:
 
-1. Run `2025-02` first to populate the dashboard.
-2. Run a nearby month such as `2025-03` to see a modest change.
-3. Run `2025-05` and compare whether the drift metrics move more noticeably.
+1. Run `2025-02` first to populate the dashboard. This month looks very similar to the training data, so expect almost no drift.
+2. Run `2025-05` to see a modest change.
+3. Run `2025-08` and compare how much more the drift metrics move.
 
 When you create a manual run in the Prefect UI, open the run parameters and change only `year` and `month`. Keep `run_id`, `mlflow_tracking_uri` and `database_url` aligned with your `.env` file.
 
