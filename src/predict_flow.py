@@ -1,7 +1,7 @@
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, List, cast
+from typing import Any, cast
 
 import mlflow
 import pandas as pd
@@ -12,7 +12,6 @@ from evidently.future.report import Report
 from prefect import flow, get_run_logger, task
 from sqlalchemy import create_engine
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
 REFERENCE_DATA_PATH = DATA_DIR / "reference_data.parquet"
@@ -20,7 +19,7 @@ DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@localhost:5555/ny_taxi"
 
 
 def preprocess(
-    filename: str, num_features: List[str], cat_features: List[str], target: str
+    filename: str, num_features: list[str], cat_features: list[str], target: str
 ) -> pd.DataFrame:
     """Load one taxi batch and keep the same modeling columns used in notebooks."""
     df = pd.read_parquet(filename)
@@ -44,8 +43,8 @@ def load_model(run_id: str, mlflow_tracking_uri: str):
 
 def prepare_evidently_dataset(
     df: pd.DataFrame,
-    num_features: List[str],
-    cat_features: List[str],
+    num_features: list[str],
+    cat_features: list[str],
     pred_col: str,
 ) -> Dataset:
     """Attach column roles so Evidently treats features and predictions correctly."""
@@ -59,8 +58,8 @@ def prepare_evidently_dataset(
 def create_report(
     reference_data: pd.DataFrame,
     current_data: pd.DataFrame,
-    num_features: List[str],
-    cat_features: List[str],
+    num_features: list[str],
+    cat_features: list[str],
     pred_col: str = "prediction",
 ) -> dict:
     """Compare the saved reference snapshot with the current scored batch."""
@@ -94,7 +93,7 @@ def load_report(result: dict, database_url: str) -> None:
     engine = create_engine(database_url)
 
     report_dict = {
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": datetime.now(UTC),
         "prediction_drift": result["metrics"][0]["value"],
         "num_drifted_columns": result["metrics"][1]["value"]["count"],
         "share_missing_values": result["metrics"][2]["value"]["share"],
