@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
 REFERENCE_DATA_PATH = DATA_DIR / "reference_data.parquet"
 DEFAULT_DATABASE_URL = "postgresql+psycopg://postgres:postgres@localhost:5555/ny_taxi"
+MODEL_NAME = "green-taxi-ride-duration"
 
 
 def preprocess(
@@ -36,11 +37,10 @@ def preprocess(
     return df[cat_features + num_features + [target]]
 
 
-def load_model(run_id: str, mlflow_tracking_uri: str):
-    """Load the exact model run selected by the RUN_ID setting."""
+def load_model(model_name: str, mlflow_tracking_uri: str):
+    """Load the model version that currently holds the production alias."""
     mlflow.set_tracking_uri(mlflow_tracking_uri)
-    logged_model = f"runs:/{run_id}/mlflow-model"
-    return mlflow.pyfunc.load_model(logged_model)
+    return mlflow.pyfunc.load_model(f"models:/{model_name}@production")
 
 
 def prepare_evidently_dataset(
@@ -73,9 +73,9 @@ def create_report(
     )
 
     report_metrics: list[Any] = [
-        cast(Any, ValueDrift)(column="prediction"),
+        cast(Any, ValueDrift)(column=pred_col),
         cast(Any, DriftedColumnsCount)(),
-        cast(Any, MissingValueCount)(column="prediction"),
+        cast(Any, MissingValueCount)(column=pred_col),
     ]
 
     report = Report(
@@ -108,7 +108,7 @@ def load_report(result: dict, database_url: str) -> None:
 
 @task
 def apply_model(
-    filename: str, run_id: str, mlflow_tracking_uri: str, database_url: str
+    filename: str, model_name: str, mlflow_tracking_uri: str, database_url: str
 ) -> None:
     logger = get_run_logger()
     logger.info("Reading current batch from %s", filename)
@@ -119,7 +119,7 @@ def apply_model(
             "Run the final cell from 03-intro-to-evidently.ipynb first."
         )
 
-    # Notebook 03 writes this file after scoring the reference split.
+    # Notebook 03 writes this file with the training split.
     reference_data = pd.read_parquet(REFERENCE_DATA_PATH)
 
     cat_features = ["PULocationID", "DOLocationID"]
@@ -128,11 +128,15 @@ def apply_model(
 
     current_data = preprocess(filename, num_features, cat_features, target)
 
-    logger.info("Loading model run %s", run_id)
-    loaded_model = load_model(run_id, mlflow_tracking_uri)
-    current_data["prediction"] = loaded_model.predict(
-        current_data[cat_features + num_features].to_dict(orient="records")
-    )
+    logger.info("Loading production model %s", model_name)
+    loaded_model = load_model(model_name, mlflow_tracking_uri)
+
+    # Score the reference and the current batch with the same model, so prediction
+    # drift reflects changes in the data and not a newly promoted model.
+    for df in (reference_data, current_data):
+        df["prediction"] = loaded_model.predict(
+            df[cat_features + num_features].to_dict(orient="records")
+        )
 
     logger.info("Creating Evidently report")
     result = create_report(
@@ -143,8 +147,8 @@ def apply_model(
 
 @flow(name="Predict Green Taxi Trip Duration")
 def run(
-    run_id: str,
     mlflow_tracking_uri: str,
+    model_name: str = MODEL_NAME,
     year: int = 2025,
     month: int = 2,
     database_url: str = DEFAULT_DATABASE_URL,
@@ -154,25 +158,19 @@ def run(
 
     # Pandas can stream this Parquet file directly from the public NYC TLC bucket.
     filename = f"https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{year}-{month:02d}.parquet"
-    apply_model(filename, run_id, mlflow_tracking_uri, database_url)
+    apply_model(filename, model_name, mlflow_tracking_uri, database_url)
 
 
 if __name__ == "__main__":
     load_dotenv()
 
     mlflow_tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
-    run_id = os.getenv("RUN_ID")
     database_url = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
     if not mlflow_tracking_uri:
         raise ValueError("MLFLOW_TRACKING_URI is missing. Add it to your .env file.")
-    if not run_id:
-        raise ValueError(
-            "RUN_ID is missing. Add it to your .env file after notebook 01."
-        )
 
     run(
-        run_id=run_id,
         mlflow_tracking_uri=mlflow_tracking_uri,
         year=2025,
         month=2,

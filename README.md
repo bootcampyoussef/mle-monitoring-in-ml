@@ -1,6 +1,6 @@
 # Monitoring in ML
 
-In this repository, you will build a practical monitoring workflow for a regression model trained on the [NYC Green Taxi dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page). You start by training and tracking a model with MLflow, inspect drift manually, then use Evidently to automate checks. Finally, you wire the results into a local monitoring stack built with Prefect, Postgres and Grafana, and retrain the model when drift signals justify it.
+In this repository, you will build a practical monitoring workflow for a regression model trained on the [NYC Green Taxi dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page). You start by training and tracking a model with MLflow, then inspect drift manually and use Evidently to automate the checks. Finally, you wire the results into a local monitoring stack built with Prefect, Postgres and Grafana, and retrain the model when drift signals justify it.
 
 ## Learning Objectives
 
@@ -118,7 +118,7 @@ Copy the template once:
 cp .env.example .env
 ```
 
-Keep the default local URLs unless you intentionally change the local stack ports. After you finish [01 - Train an ML Model](01-train-ml-model.ipynb), paste the printed `RUN_ID` into `.env`.
+Keep the default local URLs unless you intentionally change the local stack ports.
 
 > [!CAUTION]
 > Never commit `.env`. It is git-ignored because environment files often hold secrets. Only `.env.example`, with placeholder or default values, belongs in the repository.

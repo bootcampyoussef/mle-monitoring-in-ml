@@ -26,8 +26,7 @@ if __name__ == "__main__":
         name="ride_duration_prediction_monitoring",
         schedules=[schedule_rule],
         parameters={
-            "run_id": os.getenv("RUN_ID"),
-            "mlflow_tracking_uri": os.getenv("MLFLOW_TRACKING_URI"),
+            "mlflow_tracking_uri": os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"),
             "database_url": os.getenv(
                 "DATABASE_URL",
                 "postgresql+psycopg://postgres:postgres@localhost:5555/ny_taxi",
@@ -36,4 +35,6 @@ if __name__ == "__main__":
             "month": 2,
         },
         tags=["batch", "predict", "prefect"],
+        # Run one flow at a time so simultaneous runs never write to Postgres together.
+        limit=1,
     )

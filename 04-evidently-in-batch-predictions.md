@@ -25,14 +25,13 @@ flowchart LR
 Before starting this chapter, make sure you have already:
 
 - copied `.env.example` to `.env`,
-- completed [01-train-ml-model.ipynb](./01-train-ml-model.ipynb), copied the printed `RUN_ID` and pasted it into `.env`,
+- completed [01-train-ml-model.ipynb](./01-train-ml-model.ipynb), which registers the model under the `production` alias,
 - completed [03-intro-to-evidently.ipynb](./03-intro-to-evidently.ipynb) and created `data/reference_data.parquet`.
 
 Your `.env` file should look like this:
 
 ```dotenv
 MLFLOW_TRACKING_URI=sqlite:///mlflow.db
-RUN_ID=<paste-your-run-id-here>
 PREFECT_API_URL=http://127.0.0.1:4200/api
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5555/ny_taxi
 ```
@@ -90,7 +89,7 @@ The batch monitoring logic lives in [src/predict_flow.py](./src/predict_flow.py)
 
 The flow does four important things:
 
-1. Downloads or reads the current month of taxi rides.
+1. Reads the current month of taxi rides.
 2. Loads the registered model from MLflow.
 3. Compares reference data and current predictions with Evidently.
 4. Writes a small metrics record into Postgres.
@@ -158,7 +157,7 @@ Suggested checks:
 2. Run `2025-05` to see a modest change.
 3. Run `2025-08` and compare how much more the drift metrics move.
 
-When you create a manual run in the Prefect UI, open the run parameters and change only `year` and `month`. Keep `run_id`, `mlflow_tracking_uri` and `database_url` aligned with your `.env` file.
+When you create a manual run in the Prefect UI, open the run parameters and change only `year` and `month`. Keep `model_name`, `mlflow_tracking_uri` and `database_url` as they are.
 
 You can also keep the scheduled deployment and wait for the first run to start automatically.
 
@@ -188,15 +187,20 @@ Check that:
 
 - the Prefect run completed successfully,
 - `data/reference_data.parquet` exists,
-- `RUN_ID` points to a real MLflow run,
+- notebook 01 registered a model with the `production` alias,
 - Postgres is reachable on `localhost:5555`.
 
 ### Prefect cannot connect to the API
 
-Restart the local server and reapply the config:
+Restart the local server:
 
 ```bash
 uv run prefect server start
+```
+
+Then, in another terminal, reapply the config:
+
+```bash
 uv run prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
 ```
 
