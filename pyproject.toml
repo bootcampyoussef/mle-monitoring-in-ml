@@ -1,0 +1,23 @@
+[project]
+name = "mle-monitoring-in-ml"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "evidently>=0.7.23",
+    "matplotlib>=3.11.2",
+    "mlflow>=3.16.1",
+    "pandas>=3.0.6",
+    "prefect>=3.8.7",
+    "psycopg[binary]>=3.3.6",
+    "pyarrow>=25.0.1",
+    "python-dotenv>=1.2.4",
+    "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
+    "sqlalchemy>=2.0,<2.1",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.4.0",
+    "ipywidgets>=8.1.9",
+]
