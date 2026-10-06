@@ -10,7 +10,8 @@ from evidently.future.datasets import DataDefinition, Dataset
 from evidently.future.metrics import DriftedColumnsCount, MissingValueCount, ValueDrift
 from evidently.future.report import Report
 from prefect import flow, get_run_logger, task
-from sqlalchemy import create_engine
+from sklearn.metrics import mean_absolute_error
+from sqlalchemy import create_engine, inspect, text
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
@@ -21,9 +22,10 @@ MODEL_NAME = "green-taxi-ride-duration"
 
 def preprocess(
     filename: str, num_features: list[str], cat_features: list[str], target: str
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, dict[str, int]]:
     """Load one taxi batch and keep the same modeling columns used in notebooks."""
     df = pd.read_parquet(filename)
+    received_rows = len(df)
 
     # Duration is the supervised label; filtering keeps training and monitoring
     # aligned with the outlier rules introduced in notebook 01.
@@ -34,13 +36,26 @@ def preprocess(
     df = df[df["trip_distance"].between(0.1, 100)]
     # The model one-hot encodes the location IDs, so they must be strings.
     df[cat_features] = df[cat_features].astype(str)
-    return df[cat_features + num_features + [target]]
+    row_counts = {
+        "received_rows": received_rows,
+        "retained_rows": len(df),
+        "rejected_rows": received_rows - len(df),
+    }
+    return df[cat_features + num_features + [target]], row_counts
 
 
-def load_model(model_name: str, mlflow_tracking_uri: str):
+def load_model(
+    model_name: str, mlflow_tracking_uri: str
+) -> tuple[mlflow.pyfunc.PyFuncModel, int]:
     """Load the model version that currently holds the production alias."""
     mlflow.set_tracking_uri(mlflow_tracking_uri)
-    return mlflow.pyfunc.load_model(f"models:/{model_name}@production")
+    version = int(
+        mlflow.MlflowClient()
+        .get_model_version_by_alias(model_name, "production")
+        .version
+    )
+    # Pin the resolved version even if the alias changes during this run.
+    return mlflow.pyfunc.load_model(f"models:/{model_name}/{version}"), version
 
 
 def prepare_evidently_dataset(
@@ -88,7 +103,9 @@ def create_report(
     ).dict()
 
 
-def load_report(result: dict, database_url: str, batch_month: datetime) -> None:
+def load_report(
+    result: dict, database_url: str, batch_month: datetime, run_metrics: dict
+) -> None:
     """Persist the small metric set that powers the Grafana dashboard."""
     logger = get_run_logger()
     logger.info("Loading results to database")
@@ -100,11 +117,33 @@ def load_report(result: dict, database_url: str, batch_month: datetime) -> None:
         "prediction_drift": result["metrics"][0]["value"],
         "num_drifted_columns": result["metrics"][1]["value"]["count"],
         "share_missing_values": result["metrics"][2]["value"]["share"],
+        **run_metrics,
     }
 
     df_report = pd.DataFrame([report_dict])
     logger.info("Writing %s row to drift_metrics", len(df_report))
-    df_report.to_sql(name="drift_metrics", con=engine, if_exists="append", index=False)
+    try:
+        with engine.begin() as connection:
+            # Existing lesson databases retain their rows when new metrics arrive.
+            if inspect(connection).has_table("drift_metrics"):
+                connection.execute(
+                    text(
+                        """ALTER TABLE drift_metrics
+                        ADD COLUMN IF NOT EXISTS mae DOUBLE PRECISION,
+                        ADD COLUMN IF NOT EXISTS received_rows BIGINT,
+                        ADD COLUMN IF NOT EXISTS retained_rows BIGINT,
+                        ADD COLUMN IF NOT EXISTS rejected_rows BIGINT,
+                        ADD COLUMN IF NOT EXISTS model_name TEXT,
+                        ADD COLUMN IF NOT EXISTS model_version BIGINT,
+                        ADD COLUMN IF NOT EXISTS run_timestamp TIMESTAMP WITH TIME ZONE
+                        """
+                    )
+                )
+            df_report.to_sql(
+                name="drift_metrics", con=connection, if_exists="append", index=False
+            )
+    finally:
+        engine.dispose()
 
 
 @task
@@ -116,6 +155,7 @@ def apply_model(
     database_url: str,
 ) -> None:
     logger = get_run_logger()
+    run_timestamp = datetime.now(UTC)
     logger.info("Reading current batch from %s", filename)
 
     if not REFERENCE_DATA_PATH.exists():
@@ -131,10 +171,21 @@ def apply_model(
     num_features = ["trip_distance"]
     target = "duration"
 
-    current_data = preprocess(filename, num_features, cat_features, target)
+    current_data, row_counts = preprocess(filename, num_features, cat_features, target)
+    logger.info(
+        "Batch rows: received=%s, retained=%s, rejected=%s",
+        row_counts["received_rows"],
+        row_counts["retained_rows"],
+        row_counts["rejected_rows"],
+    )
+    if current_data.empty:
+        raise ValueError(
+            "No rows remain after filtering this batch; check the input data."
+        )
 
     logger.info("Loading production model %s", model_name)
-    loaded_model = load_model(model_name, mlflow_tracking_uri)
+    loaded_model, model_version = load_model(model_name, mlflow_tracking_uri)
+    logger.info("Using model %s version %s", model_name, model_version)
 
     # Score the reference and the current batch with the same model, so prediction
     # drift reflects changes in the data and not a newly promoted model.
@@ -147,7 +198,16 @@ def apply_model(
     result = create_report(
         reference_data, current_data, num_features, cat_features, pred_col="prediction"
     )
-    load_report(result, database_url, batch_month)
+    run_metrics = {
+        "mae": float(
+            mean_absolute_error(current_data[target], current_data["prediction"])
+        ),
+        **row_counts,
+        "model_name": model_name,
+        "model_version": model_version,
+        "run_timestamp": run_timestamp,
+    }
+    load_report(result, database_url, batch_month, run_metrics)
 
 
 @flow(name="Predict Green Taxi Trip Duration")

@@ -91,7 +91,7 @@ The flow does four important things:
 
 1. Reads the current month of taxi rides.
 2. Loads the registered model from MLflow.
-3. Compares reference data and current predictions with Evidently.
+3. Compares reference data and current predictions with Evidently, and measures duration MAE on the labeled batch.
 4. Writes a small metrics record into Postgres.
 
 The database insert is intentionally narrow so the dashboard stays easy to read:
@@ -102,14 +102,19 @@ report_dict = {
     "prediction_drift": result["metrics"][0]["value"],
     "num_drifted_columns": result["metrics"][1]["value"]["count"],
     "share_missing_values": result["metrics"][2]["value"]["share"],
+    **run_metrics,
 }
 ```
 
-Those three values are enough to answer the first monitoring questions:
+The drift metrics answer the first monitoring questions:
 
 - Are predictions drifting?
 - How many columns are drifting?
 - Are missing values becoming a problem?
+
+`run_metrics` adds the mean absolute error (`mae`, in minutes), the counts of `received_rows`, `retained_rows`, and `rejected_rows`, plus `model_name`, `model_version`, and `run_timestamp`. Counts are captured before and after the duration/distance filters, so discarded rows remain visible. MAE is evaluated only on retained trips whose actual duration is already known; this remains an offline, historical monitoring example.
+
+The flow resolves the `production` alias once and loads that exact model version. Existing databases receive the new columns automatically without losing earlier records; those older records have no values for the new fields.
 
 ## Step 3: Start a local Prefect server
 
@@ -173,9 +178,13 @@ After one or more runs complete, refresh Grafana and open the provisioned dashbo
 
 - prediction drift over time,
 - number of drifted columns per batch,
-- share of missing prediction values.
+- share of missing prediction values, displayed as a percentage,
+- model MAE in minutes,
+- a run-history table with the received, retained, and rejected row counts and the exact model version used.
 
-Each point sits at the month of data it scored, not at the time the run happened, so the panels read as a timeline whatever order you trigger the runs in. Running the same month again adds a second point at the same date.
+The prediction-drift panel includes a line at `0.1`, the default threshold used in this lesson. It is not a universal production limit. Use MAE to check whether prediction accuracy changes: drift alone does not demonstrate worse performance.
+
+Each point sits at the month of data it scored, not at the time the run happened, so the panels read as a timeline whatever order you trigger the runs in. Running the same month again adds a second point at the same date. The run-history table distinguishes those runs by their execution timestamp and model version.
 
 That view is useful because a single batch rarely tells the whole story. Monitoring becomes more interesting once you can compare several runs and ask whether the signal is noisy, stable, or worsening.
 

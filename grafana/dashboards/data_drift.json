@@ -62,7 +62,7 @@
                 "mode": "none"
               },
               "thresholdsStyle": {
-                "mode": "off"
+                "mode": "dashed"
               }
             },
             "mappings": [],
@@ -75,10 +75,12 @@
                 },
                 {
                   "color": "red",
-                  "value": 80
+                  "value": 0.1
                 }
               ]
-            }
+            },
+            "decimals": 3,
+            "min": 0
           },
           "overrides": []
         },
@@ -133,6 +135,7 @@
             ]
           }
         ],
+        "description": "The 0.1 line is the lesson's default drift threshold, not a universal production limit.",
         "title": "Prediction Drift",
         "type": "timeseries"
       },
@@ -174,16 +177,16 @@
               }
             },
             "mappings": [],
+            "unit": "percentunit",
+            "decimals": 1,
+            "min": 0,
+            "max": 1,
             "thresholds": {
               "mode": "absolute",
               "steps": [
                 {
                   "color": "green",
                   "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
                 }
               ]
             }
@@ -320,6 +323,14 @@
               },
               "properties": [
                 {
+                  "id": "decimals",
+                  "value": 0
+                },
+                {
+                  "id": "min",
+                  "value": 0
+                },
+                {
                   "id": "color",
                   "value": {
                     "fixedColor": "yellow",
@@ -383,6 +394,88 @@
         ],
         "title": "Number of Drifted Columns",
         "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "postgres"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "suffix:min",
+            "decimals": 2,
+            "min": 0,
+            "custom": {
+              "drawStyle": "line",
+              "showPoints": "always"
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 9
+        },
+        "id": 7,
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "single"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres"
+            },
+            "format": "time_series",
+            "rawQuery": true,
+            "rawSql": "SELECT \"timestamp\" AS \"time\", mae FROM drift_metrics WHERE $__timeFilter(\"timestamp\") ORDER BY 1, run_timestamp",
+            "refId": "A"
+          }
+        ],
+        "description": "Mean absolute duration error on the retained, labeled trips in each historical batch.",
+        "title": "Model MAE (minutes)",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "postgres"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "decimals": 0
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 17
+        },
+        "id": 8,
+        "options": {
+          "showHeader": true,
+          "cellHeight": "sm"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "postgres"
+            },
+            "format": "table",
+            "rawQuery": true,
+            "rawSql": "SELECT \"timestamp\" AS \"Batch month\", run_timestamp AS \"Executed at\", model_name AS \"Model\", model_version AS \"Version\", received_rows AS \"Received\", retained_rows AS \"Retained\", rejected_rows AS \"Rejected\" FROM drift_metrics WHERE $__timeFilter(\"timestamp\") ORDER BY \"timestamp\" DESC, run_timestamp DESC NULLS LAST",
+            "refId": "A"
+          }
+        ],
+        "title": "Run History",
+        "type": "table"
       }
     ],
     "schemaVersion": 36,
