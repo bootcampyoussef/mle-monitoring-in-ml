@@ -98,7 +98,7 @@ The database insert is intentionally narrow so the dashboard stays easy to read:
 
 ```python
 report_dict = {
-    "timestamp": datetime.now(UTC),
+    "timestamp": batch_month,
     "prediction_drift": result["metrics"][0]["value"],
     "num_drifted_columns": result["metrics"][1]["value"]["count"],
     "share_missing_values": result["metrics"][2]["value"]["share"],
